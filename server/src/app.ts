@@ -41,6 +41,8 @@ export function createGameServer(clientOrigins: string[] | true): HttpServer {
   const registry = new RoomRegistry({
     emitState: (socketId, view) => io.to(socketId).emit('room:state', view),
     emitReaction: (socketId, reaction) => io.to(socketId).emit('room:reaction', reaction),
+    emitChat: (socketId, message) => io.to(socketId).emit('chat:message', message),
+    emitChatHistory: (socketId, messages) => io.to(socketId).emit('chat:history', messages),
   });
 
   io.on('connection', (socket: GameSocket) => {
@@ -120,6 +122,15 @@ export function createGameServer(clientOrigins: string[] | true): HttpServer {
       respond(
         ack,
         withSeat(registry, socket, (room, playerId) => room.react(playerId, payload.emoji)),
+      );
+    });
+
+    socket.on('chat:send', (payload, ack) => {
+      if (!isAckFunction(socket, ack)) return;
+      if (!isRecord(payload)) return ack({ ok: false, error: 'Invalid request.' });
+      respond(
+        ack,
+        withSeat(registry, socket, (room, playerId) => room.sendChat(playerId, payload.text)),
       );
     });
 

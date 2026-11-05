@@ -94,6 +94,15 @@ export interface Reaction {
   emoji: string;
 }
 
+/** One line of table talk. The sender's name is copied in so history still reads after they leave. */
+export interface ChatMessage {
+  /** Increasing within the room; clients use it for keys and unread tracking. */
+  id: number;
+  playerId: string;
+  name: string;
+  text: string;
+}
+
 export interface SessionInfo {
   roomCode: string;
   playerId: string;
@@ -115,9 +124,14 @@ export interface ClientToServerEvents {
   'game:liar': (payload: { seq: number }, ack: Ack) => void;
   'game:rematch': (ack: Ack) => void;
   'room:react': (payload: { emoji: string }, ack: Ack) => void;
+  'chat:send': (payload: { text: string }, ack: Ack) => void;
 }
 
 export interface ServerToClientEvents {
   'room:state': (view: RoomView) => void;
   'room:reaction': (reaction: Reaction) => void;
+  /** A new message for everyone in the room. */
+  'chat:message': (message: ChatMessage) => void;
+  /** The room's recent messages, sent to a player when they join or reconnect. */
+  'chat:history': (messages: ChatMessage[]) => void;
 }

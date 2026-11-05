@@ -4,6 +4,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { io as connect, type Socket } from 'socket.io-client';
 import type {
   BiddingView,
+  ChatMessage,
   ClientToServerEvents,
   Reaction,
   RoomView,
@@ -181,6 +182,49 @@ describe('multiplayer flow over Socket.io', () => {
       ok: false,
       error: 'At least 2 players are needed.',
     });
+  });
+
+  it('delivers chat messages, keeps recent history for (re)joining players, and validates input', async () => {
+    const host = await newClient();
+    const hostHistory = new Promise<ChatMessage[]>((resolve) => host.socket.once('chat:history', resolve));
+    const hostSession = expectSession(await host.socket.emitWithAck('room:create', { name: 'Host' }));
+    expect(await hostHistory).toEqual([]);
+
+    const firstMessage = new Promise<ChatMessage>((resolve) => host.socket.once('chat:message', resolve));
+    expect(await host.socket.emitWithAck('chat:send', { text: '  Good luck\neveryone! 🍀  ' })).toEqual({ ok: true });
+    expect(await firstMessage).toMatchObject({
+      playerId: hostSession.playerId,
+      name: 'Host',
+      text: 'Good luck everyone! 🍀',
+    });
+
+    // A player joining later receives the history.
+    const guest = await newClient();
+    const guestHistory = new Promise<ChatMessage[]>((resolve) => guest.socket.once('chat:history', resolve));
+    const guestSession = expectSession(
+      await guest.socket.emitWithAck('room:join', { roomCode: hostSession.roomCode, name: 'Guest' }),
+    );
+    expect((await guestHistory).map((message) => message.text)).toEqual(['Good luck everyone! 🍀']);
+
+    // Everyone, including the sender, receives new messages.
+    const hostReceives = new Promise<ChatMessage>((resolve) => host.socket.once('chat:message', resolve));
+    expect(await guest.socket.emitWithAck('chat:send', { text: 'Thanks!' })).toEqual({ ok: true });
+    expect(await hostReceives).toMatchObject({ name: 'Guest', text: 'Thanks!' });
+
+    // Spam guard, empty and oversized messages.
+    expect(await guest.socket.emitWithAck('chat:send', { text: 'again' })).toEqual({
+      ok: false,
+      error: 'Slow down a little!',
+    });
+    expect(await host.socket.emitWithAck('chat:send', { text: '   ' })).toMatchObject({ ok: false });
+    expect(await host.socket.emitWithAck('chat:send', { text: 'x'.repeat(201) })).toMatchObject({ ok: false });
+
+    // Reconnecting gets the history again.
+    guest.socket.disconnect();
+    const guestAgain = await newClient();
+    const resumedHistory = new Promise<ChatMessage[]>((resolve) => guestAgain.socket.once('chat:history', resolve));
+    expect(await guestAgain.socket.emitWithAck('room:resume', guestSession)).toEqual({ ok: true });
+    expect((await resumedHistory).map((message) => message.text)).toEqual(['Good luck everyone! 🍀', 'Thanks!']);
   });
 
   it('broadcasts emoji reactions to the room and rate-limits them', async () => {

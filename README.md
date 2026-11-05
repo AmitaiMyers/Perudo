@@ -175,6 +175,10 @@ The reveal stays on screen for 10 seconds. Losing your last die eliminates you; 
   the loser's seat shakes (the bonus winner's glows green).
 - **Fun:** cup-shake and dice-tumble at the start of each round, emoji reactions (😀 button in the top bar, 1 per
   second), synthesized sound effects with a mute toggle, and confetti + fanfare for the winner.
+- **Chat:** in the lobby the chat sits under the player list; in game the 💬 button (with an unread badge) opens a
+  slide-up chat panel, and every new message also pops up as a speech bubble at the sender's seat. Quick-phrase chips
+  ("Nice bluff! 😏", "No way! 😱"…) send in one tap. The server keeps the last 50 messages per room (in memory) and
+  sends them to players who join or reconnect; messages are 1–200 characters, at most one every 0.6 s per player.
 - **Help:** "How to play" sheet on the home screen, in the lobby and behind the **?** in game.
 - **Accessibility:** respects the OS _reduce motion_ setting (no shakes, tumbles, staged reveal or confetti), 44 px+
   touch targets, labelled controls.

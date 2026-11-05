@@ -1,5 +1,8 @@
 import { randomInt, randomUUID } from 'node:crypto';
 import {
+  CHAT_COOLDOWN_MS,
+  CHAT_HISTORY_LIMIT,
+  CHAT_MESSAGE_MAX_LENGTH,
   MAX_DICE,
   MAX_PLAYERS,
   MIN_PLAYERS,
@@ -7,6 +10,7 @@ import {
   REACTION_COOLDOWN_MS,
   REACTION_EMOJIS,
   type Bid,
+  type ChatMessage,
   type Face,
   type PublicPlayer,
   type Reaction,
@@ -27,11 +31,14 @@ interface Member {
   socketId: string | null;
   lobbyRemovalTimer: NodeJS.Timeout | null;
   lastReactionAt: number;
+  lastChatAt: number;
 }
 
 export interface RoomHooks {
   emitState: (socketId: string, view: RoomView) => void;
   emitReaction: (socketId: string, reaction: Reaction) => void;
+  emitChat: (socketId: string, message: ChatMessage) => void;
+  emitChatHistory: (socketId: string, messages: ChatMessage[]) => void;
   /** Called once the room should be forgotten (everyone left or went idle). */
   onClosed: (roomCode: string) => void;
 }
@@ -43,6 +50,8 @@ export class Room {
   private phaseTimer: NodeJS.Timeout | null = null;
   private idleTimer: NodeJS.Timeout | null = null;
   private nextReactionId = 1;
+  private chatLog: ChatMessage[] = [];
+  private nextChatId = 1;
 
   constructor(
     readonly code: string,
@@ -67,11 +76,13 @@ export class Room {
       socketId,
       lobbyRemovalTimer: null,
       lastReactionAt: 0,
+      lastChatAt: 0,
     };
     this.members.push(member);
     this.handOverHostIfAbsent();
     this.cancelIdleTimer();
     this.broadcast();
+    this.hooks.emitChatHistory(socketId, this.chatLog);
     return { roomCode: this.code, playerId: member.id, token: member.token };
   }
 
@@ -85,6 +96,7 @@ export class Room {
     this.handOverHostIfAbsent();
     this.cancelIdleTimer();
     this.broadcast();
+    this.hooks.emitChatHistory(socketId, this.chatLog);
     return null;
   }
 
@@ -125,9 +137,22 @@ export class Room {
     member.lastReactionAt = now;
     const reaction: Reaction = { id: this.nextReactionId, playerId, emoji };
     this.nextReactionId += 1;
-    for (const recipient of this.members) {
-      if (recipient.socketId !== null) this.hooks.emitReaction(recipient.socketId, reaction);
-    }
+    this.forEachConnectedSocket((socketId) => this.hooks.emitReaction(socketId, reaction));
+    return null;
+  }
+
+  /** Posts a chat message to everyone in the room and keeps it in the recent history. */
+  sendChat(playerId: string, rawText: unknown): string | null {
+    const text = normalizeChatText(rawText);
+    if (text === null) return `Messages must be 1-${CHAT_MESSAGE_MAX_LENGTH} characters.`;
+    const member = this.requireMember(playerId);
+    const now = Date.now();
+    if (now - member.lastChatAt < CHAT_COOLDOWN_MS) return 'Slow down a little!';
+    member.lastChatAt = now;
+    const message: ChatMessage = { id: this.nextChatId, playerId, name: member.name, text };
+    this.nextChatId += 1;
+    this.chatLog = [...this.chatLog, message].slice(-CHAT_HISTORY_LIMIT);
+    this.forEachConnectedSocket((socketId) => this.hooks.emitChat(socketId, message));
     return null;
   }
 
@@ -249,8 +274,12 @@ export class Room {
   }
 
   private broadcast(): void {
+    this.forEachConnectedSocket((socketId, member) => this.hooks.emitState(socketId, this.buildView(member.id)));
+  }
+
+  private forEachConnectedSocket(send: (socketId: string, member: Member) => void): void {
     for (const member of this.members) {
-      if (member.socketId !== null) this.hooks.emitState(member.socketId, this.buildView(member.id));
+      if (member.socketId !== null) send(member.socketId, member);
     }
   }
 
@@ -318,6 +347,13 @@ function normalizeName(rawName: unknown): string | null {
   if (typeof rawName !== 'string') return null;
   const name = rawName.trim();
   return name.length >= 1 && name.length <= NAME_MAX_LENGTH ? name : null;
+}
+
+/** Trims the message and turns control characters (newlines, tabs…) into spaces; null if empty or too long. */
+function normalizeChatText(rawText: unknown): string | null {
+  if (typeof rawText !== 'string') return null;
+  const text = rawText.replace(/[\u0000-\u001f\u007f]+/g, ' ').trim();
+  return text.length >= 1 && text.length <= CHAT_MESSAGE_MAX_LENGTH ? text : null;
 }
 
 function clearTimer(timer: NodeJS.Timeout | null): void {

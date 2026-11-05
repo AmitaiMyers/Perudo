@@ -1,16 +1,19 @@
 import { useState } from 'react';
 import { MAX_PLAYERS, MIN_PLAYERS, type LobbyView } from '@perudo/shared';
+import { ChatBox } from '../components/ChatBox';
 import { Cup } from '../components/Cup';
 import { HowToPlay } from '../components/HowToPlay';
 import { findPlayer, playerTheme } from '../players';
+import type { ChatController } from '../useChat';
 
 interface LobbyScreenProps {
   view: LobbyView;
+  chat: ChatController;
   onStart: () => void;
   onLeave: () => void;
 }
 
-export function LobbyScreen({ view, onStart, onLeave }: LobbyScreenProps) {
+export function LobbyScreen({ view, chat, onStart, onLeave }: LobbyScreenProps) {
   const [copied, setCopied] = useState(false);
   const isHost = findPlayer(view.players, view.myPlayerId).isHost;
   const inviteUrl = `${window.location.origin}${window.location.pathname}?room=${view.roomCode}`;
@@ -84,6 +87,11 @@ export function LobbyScreen({ view, onStart, onLeave }: LobbyScreenProps) {
       ) : (
         <p className="notice notice--pulse">Waiting for the host to start the game…</p>
       )}
+      <section className="card" aria-label="Lobby chat">
+        <h2 className="card__title">Chat</h2>
+        <ChatBox chat={chat} players={view.players} myPlayerId={view.myPlayerId} />
+      </section>
+
       <div className="lobby__footer">
         <HowToPlay variant="text" />
         <button type="button" className="link-button" onClick={onLeave}>

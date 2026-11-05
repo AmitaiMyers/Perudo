@@ -3,6 +3,7 @@ import {
   countMatchingDice,
   TURN_DURATION_MS,
   type BiddingView,
+  type ChatMessage,
   type Face,
   type GameOverView,
   type PublicPlayer,
@@ -26,6 +27,8 @@ export interface TableReveal {
 interface TableProps {
   view: InGameView;
   reactions: Reaction[];
+  /** Chat messages that just arrived; each shows as a speech bubble over its sender's cup. */
+  speech: ChatMessage[];
   /** Present during the reveal and at game over; drives lifted cups and the die animations. */
   reveal: TableReveal | null;
   /** What sits in the middle of the felt (current bid, reveal counter, winner…). */
@@ -36,7 +39,7 @@ interface TableProps {
  * The round table: every player sits behind their own colored cup, with their dice count on it.
  * Seats are rotated so the viewer is at the bottom, and play runs clockwise from there.
  */
-export function Table({ view, reactions, reveal, center }: TableProps) {
+export function Table({ view, reactions, speech, reveal, center }: TableProps) {
   const myIndex = view.players.findIndex((player) => player.id === view.myPlayerId);
   if (myIndex === -1) throw new Error('The room state does not include the current player.');
   const seatCount = view.players.length;
@@ -47,12 +50,14 @@ export function Table({ view, reactions, reveal, center }: TableProps) {
       <div className="table__center">{center}</div>
       {view.players.map((player, index) => {
         const position = (index - myIndex + seatCount) % seatCount; // 0 = me, then clockwise
+        const spoken = speech.filter((message) => message.playerId === player.id);
         return (
           <Seat
             key={player.id}
             view={view}
             player={player}
             style={seatPosition(position, seatCount)}
+            speech={spoken[spoken.length - 1] ?? null}
             reactions={reactions.filter((reaction) => reaction.playerId === player.id)}
             reveal={reveal}
           />
@@ -69,11 +74,13 @@ interface SeatProps {
   view: InGameView;
   player: PublicPlayer;
   style: CSSProperties;
+  /** The sender's latest live chat message, if any. */
+  speech: ChatMessage | null;
   reactions: Reaction[];
   reveal: TableReveal | null;
 }
 
-function Seat({ view, player, style, reactions, reveal }: SeatProps) {
+function Seat({ view, player, style, speech, reactions, reveal }: SeatProps) {
   const theme = playerTheme(view.players, player.id);
   const bidding = view.phase === 'bidding' ? view : null;
   const isMe = player.id === view.myPlayerId;
@@ -106,6 +113,11 @@ function Seat({ view, player, style, reactions, reveal }: SeatProps) {
 
   return (
     <div className={seatClasses.join(' ')} style={style}>
+      {speech !== null && (
+        <span key={speech.id} className="seat__speech" role="status">
+          <span className="seat__speech-text">{speech.text}</span>
+        </span>
+      )}
       <div className="seat__spot">
         {hand !== null && (
           <span className={`seat__dice ${lifted ? '' : 'seat__dice--covered'}`}>

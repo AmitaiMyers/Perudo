@@ -1,3 +1,4 @@
+import { useChat, type ChatController } from './useChat';
 import { useRoom, type RoomController } from './useRoom';
 import { GameScreen } from './screens/GameScreen';
 import { HomeScreen } from './screens/HomeScreen';
@@ -9,6 +10,7 @@ const INVITED_ROOM_CODE = new URLSearchParams(window.location.search).get('room'
 export function App() {
   const room = useRoom();
   const { view } = room;
+  const chat = useChat(view === null ? null : view.myPlayerId);
 
   return (
     <>
@@ -22,12 +24,12 @@ export function App() {
       )}
       {!room.connected && view !== null && <div className="banner">Connection lost: reconnecting…</div>}
 
-      <CurrentScreen room={room} />
+      <CurrentScreen room={room} chat={chat} />
     </>
   );
 }
 
-function CurrentScreen({ room }: { room: RoomController }) {
+function CurrentScreen({ room, chat }: { room: RoomController; chat: ChatController }) {
   const { view } = room;
   if (view === null && room.resuming) {
     return (
@@ -46,6 +48,8 @@ function CurrentScreen({ room }: { room: RoomController }) {
       />
     );
   }
-  if (view.phase === 'lobby') return <LobbyScreen view={view} onStart={room.startGame} onLeave={room.leaveRoom} />;
-  return <GameScreen view={view} room={room} />;
+  if (view.phase === 'lobby') {
+    return <LobbyScreen view={view} chat={chat} onStart={room.startGame} onLeave={room.leaveRoom} />;
+  }
+  return <GameScreen view={view} room={room} chat={chat} />;
 }

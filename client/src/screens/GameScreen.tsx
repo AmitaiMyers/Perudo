@@ -3,6 +3,7 @@ import type { BiddingView, GameOverView, RevealView } from '@perudo/shared';
 import { ActionPanel } from '../components/ActionPanel';
 import { Avatar } from '../components/Avatar';
 import { BidText } from '../components/BidText';
+import { ChatButton } from '../components/ChatButton';
 import { Confetti } from '../components/Confetti';
 import { HowToPlay } from '../components/HowToPlay';
 import { Icon } from '../components/Icon';
@@ -17,21 +18,22 @@ import { playSound } from '../sound';
 import { useCountdown } from '../useCountdown';
 import { useGameEffects } from '../useGameEffects';
 import { useRevealStage } from '../useRevealStage';
+import type { ChatController } from '../useChat';
 import type { RoomController } from '../useRoom';
 
 /** Delay after the final die animation before the winner celebration starts. */
 const CELEBRATION_DELAY_MS = 600;
 
-export function GameScreen({ view, room }: { view: InGameView; room: RoomController }) {
+export function GameScreen({ view, room, chat }: { view: InGameView; room: RoomController; chat: ChatController }) {
   useGameEffects(view);
-  if (view.phase === 'bidding') return <BiddingLayout view={view} room={room} />;
-  if (view.phase === 'reveal') return <RevealLayout key={view.roundNumber} view={view} room={room} />;
-  return <GameOverLayout view={view} room={room} />;
+  if (view.phase === 'bidding') return <BiddingLayout view={view} room={room} chat={chat} />;
+  if (view.phase === 'reveal') return <RevealLayout key={view.roundNumber} view={view} room={room} chat={chat} />;
+  return <GameOverLayout view={view} room={room} chat={chat} />;
 }
 
 // ── Layouts per phase ───────────────────────────────────────────────────────
 
-function BiddingLayout({ view, room }: { view: BiddingView; room: RoomController }) {
+function BiddingLayout({ view, room, chat }: { view: BiddingView; room: RoomController; chat: ChatController }) {
   const me = findPlayer(view.players, view.myPlayerId);
   const isMyTurn = view.turnPlayerId === view.myPlayerId;
 
@@ -39,8 +41,17 @@ function BiddingLayout({ view, room }: { view: BiddingView; room: RoomController
     <GameFrame
       view={view}
       room={room}
+      chat={chat}
       status={`Round ${view.roundNumber}`}
-      table={<Table view={view} reactions={room.reactions} reveal={null} center={<BidCenter view={view} />} />}
+      table={
+        <Table
+          view={view}
+          reactions={room.reactions}
+          speech={chat.bubbles}
+          reveal={null}
+          center={<BidCenter view={view} />}
+        />
+      }
       bottom={
         <div className={`dock ${isMyTurn ? 'dock--my-turn' : ''}`}>
           <div className="dock__turn">
@@ -74,18 +85,20 @@ function BiddingLayout({ view, room }: { view: BiddingView; room: RoomController
   );
 }
 
-function RevealLayout({ view, room }: { view: RevealView; room: RoomController }) {
+function RevealLayout({ view, room, chat }: { view: RevealView; room: RoomController; chat: ChatController }) {
   const stage = useRevealStage(view.reveal, view.players, view.myPlayerId, `round-${view.roundNumber}`);
   const left = useCountdown(view.nextRoundInMs);
   return (
     <GameFrame
       view={view}
       room={room}
+      chat={chat}
       status={`Next round ${Math.ceil(left / 1000)}s`}
       table={
         <Table
           view={view}
           reactions={room.reactions}
+          speech={chat.bubbles}
           reveal={{ summary: view.reveal, stage }}
           center={<RevealCounter reveal={view.reveal} stage={stage} />}
         />
@@ -99,7 +112,7 @@ function RevealLayout({ view, room }: { view: RevealView; room: RoomController }
   );
 }
 
-function GameOverLayout({ view, room }: { view: GameOverView; room: RoomController }) {
+function GameOverLayout({ view, room, chat }: { view: GameOverView; room: RoomController; chat: ChatController }) {
   const stage = useRevealStage(view.reveal, view.players, view.myPlayerId, 'final');
   const isHost = findPlayer(view.players, view.myPlayerId).isHost;
   const iWon = view.winnerId === view.myPlayerId;
@@ -116,11 +129,13 @@ function GameOverLayout({ view, room }: { view: GameOverView; room: RoomControll
     <GameFrame
       view={view}
       room={room}
+      chat={chat}
       status="Game over"
       table={
         <Table
           view={view}
           reactions={room.reactions}
+          speech={chat.bubbles}
           reveal={{ summary: view.reveal, stage }}
           center={
             celebrate ? (
@@ -158,6 +173,7 @@ function GameOverLayout({ view, room }: { view: GameOverView; room: RoomControll
 interface GameFrameProps {
   view: InGameView;
   room: RoomController;
+  chat: ChatController;
   /** Short text in the top bar pill (round number, next-round countdown…). */
   status: string;
   table: ReactNode;
@@ -166,7 +182,7 @@ interface GameFrameProps {
 }
 
 /** Top bar, the round table, and a bottom area that changes with the phase. */
-function GameFrame({ view, room, status, table, bottom }: GameFrameProps) {
+function GameFrame({ view, room, chat, status, table, bottom }: GameFrameProps) {
   const confirmLeave = () => {
     const message =
       view.phase === 'gameOver'
@@ -184,6 +200,7 @@ function GameFrame({ view, room, status, table, bottom }: GameFrameProps) {
         </span>
         <span className="topbar__round">{status}</span>
         <span className="topbar__actions">
+          <ChatButton chat={chat} players={view.players} myPlayerId={view.myPlayerId} />
           <ReactionPicker onReact={room.react} />
           <SoundToggle />
           <HowToPlay variant="icon" />

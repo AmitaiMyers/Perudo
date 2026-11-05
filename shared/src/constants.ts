@@ -19,5 +19,14 @@ export const REACTION_EMOJIS = ['😂', '😱', '🤥', '🔥', '👏'] as const
 /** Minimum gap between two reactions from the same player (spam guard). */
 export const REACTION_COOLDOWN_MS = 1_000;
 
+/** Longest chat message, in characters. */
+export const CHAT_MESSAGE_MAX_LENGTH = 200;
+
+/** How many recent chat messages a room keeps (and sends to players who join or reconnect). */
+export const CHAT_HISTORY_LIMIT = 50;
+
+/** Minimum gap between two chat messages from the same player (spam guard). */
+export const CHAT_COOLDOWN_MS = 600;
+
 /** The face showing the bird. It is wild: it counts toward any non-Paco face being bid. */
 export const PACO_FACE = 1;

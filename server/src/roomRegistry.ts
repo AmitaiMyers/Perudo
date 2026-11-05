@@ -8,7 +8,7 @@ const ROOM_CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
 export class RoomRegistry {
   private readonly rooms = new Map<string, Room>();
 
-  constructor(private readonly emitters: Pick<RoomHooks, 'emitState' | 'emitReaction'>) {}
+  constructor(private readonly emitters: Omit<RoomHooks, 'onClosed'>) {}
 
   create(): Room {
     const code = this.generateUniqueCode();
