@@ -1,0 +1,17 @@
+# Render Blueprint for the Socket.io game server.
+# Render dashboard → New → Blueprint → pick this repository.
+services:
+  - type: web
+    name: perudo-server
+    runtime: node
+    plan: free
+    buildCommand: npm ci
+    startCommand: npm start
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_VERSION
+        value: '22'
+      # Your GitHub Pages origin, e.g. https://amitaimyers.github.io (no path, no trailing slash).
+      # Render asks for the value when the Blueprint is created.
+      - key: CLIENT_ORIGIN
+        sync: false

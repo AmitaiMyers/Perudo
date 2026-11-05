@@ -1,0 +1,15 @@
+{
+  "name": "@perudo/server",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "start": "tsx src/index.ts",
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "socket.io": "^4.8.4",
+    "tsx": "^4.23.15"
+  }
+}
