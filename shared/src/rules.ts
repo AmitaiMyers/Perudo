@@ -67,11 +67,6 @@ export function describeIllegalBid(previous: Bid | null, next: Bid): string | nu
   return null;
 }
 
-/** The bid forced on a player who must raise but let their timer run out. */
-export function automaticRaise(previous: Bid): Bid {
-  return { quantity: previous.quantity + 1, face: previous.face };
-}
-
 export interface ShowdownInput {
   bid: Bid;
   allDice: readonly Face[];

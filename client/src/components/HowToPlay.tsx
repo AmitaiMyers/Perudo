@@ -52,8 +52,8 @@ export function HowToPlay({ variant }: { variant: 'icon' | 'text' }) {
             Pacos → seven of any face.
           </Rule>
           <Rule title="⏱️ 30 seconds">
-            Act before your timer runs out, or the game calls Liar for you (or makes the smallest bid if no bid can be
-            challenged).
+            Act before your timer runs out, or the game calls Liar for you (or makes the smallest opening bid if nobody
+            has bid yet).
           </Rule>
           <Rule title="⚡ Jump in">
             You can act even when it is not your turn. Play then continues from the player after you.

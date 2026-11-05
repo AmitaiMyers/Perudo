@@ -178,9 +178,10 @@ function describeKatzelBlock(view: BiddingView): string | null {
   return null;
 }
 
+/** Mirrors the server: with a Katzel pending, Liar challenges the Katzel, so the bidder may call it too. */
 function describeLiarBlock(view: BiddingView): string | null {
   if (view.currentBid === null) return 'no bid yet';
-  if (view.bidderId === view.myPlayerId) return 'your own bid';
   if (view.katzelCallerId === view.myPlayerId) return 'your Katzel';
+  if (view.bidderId === view.myPlayerId && view.katzelCallerId === null) return 'your own bid';
   return null;
 }

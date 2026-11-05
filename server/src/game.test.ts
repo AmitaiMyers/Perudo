@@ -68,6 +68,22 @@ describe('turn order and interruptions', () => {
     expect(game.liar('B', game.seq)).toMatch(/own Katzel/);
   });
 
+  it('lets the bidder call Liar on a Katzel against their bid (two players)', () => {
+    const { game } = createGame(['A', 'B'], 'A');
+    raise(game, 'A', { quantity: 9, face: 3 }); // ten 3s on the table, so 9 is not exact
+    expect(game.katzel('B', game.seq)).toBeNull(); // turn passes back to A, the bidder
+    expect(round(game).turnPlayerId).toBe('A');
+    expect(game.liar('A', game.seq)).toBeNull();
+    expect(reveal(game)).toMatchObject({ liarCallerId: 'A', katzelCallerId: 'B', liarWasCorrect: true, loserId: 'B' });
+  });
+
+  it('still forbids Liar on your own bid when no Katzel is pending', () => {
+    const { game } = createGame(['A', 'B'], 'A');
+    raise(game, 'A', { quantity: 2, face: 3 });
+    raise(game, 'A', { quantity: 3, face: 3 }); // A raises over their own bid
+    expect(game.liar('A', game.seq)).toMatch(/own bid/);
+  });
+
   it('allows only one pending Katzel per bid, and a raise clears it', () => {
     const { game } = createGame();
     raise(game, 'A', { quantity: 2, face: 3 });
@@ -162,12 +178,12 @@ describe('turn timer', () => {
     expect(reveal(game)).toMatchObject({ liarCallerId: 'B', forcedByTimeout: true, interruption: false, loserId: 'A' });
   });
 
-  it('forces a raise when the turn player owns the current bid', () => {
+  it('forces Liar on the Katzel when the bidder times out after someone Katzels their bid', () => {
     const { game } = createGame();
-    raise(game, 'A', { quantity: 4, face: 3 }); // B's turn
-    expect(game.katzel('C', game.seq)).toBeNull(); // turn passes to A, who cannot call Liar on themselves
+    raise(game, 'A', { quantity: 15, face: 3 }); // B's turn
+    expect(game.katzel('C', game.seq)).toBeNull(); // turn passes to A, the bidder
     game.handleTurnTimeout();
-    expect(round(game)).toMatchObject({ currentBid: { quantity: 5, face: 3 }, bidderId: 'A', katzelCallerId: null });
+    expect(reveal(game)).toMatchObject({ liarCallerId: 'A', katzelCallerId: 'C', forcedByTimeout: true, loserId: 'A' });
   });
 
   it('gives every new turn a fresh deadline', () => {

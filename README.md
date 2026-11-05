@@ -122,12 +122,11 @@ when it expires the server acts for that player:
 
 - no bid yet this round → the minimum opening bid (one 2)
 - otherwise → **Liar** (counts as an in-turn call)
-- if the turn player _cannot_ call Liar because the current bid is their own (possible after an out-of-turn
-  Katzel) → the smallest raise of the same face
 
 **Jumping in.** Anyone may act at any time, including making the opening bid or raising over their own bid.
 After any action, the turn passes to the player clockwise after **whoever acted**. Nobody may call Liar on their
-own bid or on their own pending Katzel.
+own call: not on their own bid, and not on their own pending Katzel. While a Katzel is pending, Liar challenges the
+Katzel, so the bidder **may** call it (in a 2-player game the bidder is always the next player after a Katzel).
 
 **Katzel.** Recorded against the current bid (one Katzel per bid); the turn passes clockwise from the Katzel
 caller. A later raise cancels it. If Liar is called while it is pending, the dice are checked for an **exact**

@@ -3,7 +3,6 @@ import {
   MINIMUM_OPENING_BID,
   REVEAL_DURATION_MS,
   TURN_DURATION_MS,
-  automaticRaise,
   describeIllegalBid,
   resolveShowdown,
   type ActionNotice,
@@ -106,19 +105,19 @@ export class Game {
   /**
    * Forced action for the turn player whose 30 seconds ran out:
    *  - no bid yet → the minimum opening bid
-   *  - they may not call Liar (it is their own bid) → the smallest raise of the same face
-   *  - otherwise → Liar
+   *  - otherwise → Liar. The turn player can always call it: the turn passes to the player after whoever
+   *    acted, so it only reaches the bidder through someone else's Katzel, which the bidder may challenge.
    */
   handleTurnTimeout(): void {
     const round = this.requireBiddingRound();
     const playerId = round.turnPlayerId;
     if (round.currentBid === null) {
       this.applyRaise(round, playerId, MINIMUM_OPENING_BID, true);
-    } else if (describeLiarError(round, playerId) !== null) {
-      this.applyRaise(round, playerId, automaticRaise(round.currentBid), true);
-    } else {
-      this.applyLiar(round, playerId, true);
+      return;
     }
+    const liarError = describeLiarError(round, playerId);
+    if (liarError !== null) throw new Error(`Turn player ${playerId} cannot be forced to call Liar: ${liarError}`);
+    this.applyLiar(round, playerId, true);
   }
 
   startNextRound(): void {
@@ -257,9 +256,13 @@ export class Game {
   }
 }
 
+/**
+ * Liar challenges the Katzel when one is pending, otherwise the bid. Nobody may challenge their own call,
+ * so the bidder may call Liar exactly when someone else has called Katzel on their bid.
+ */
 function describeLiarError(round: RoundState, playerId: string): string | null {
   if (round.currentBid === null) return 'There is no bid to call Liar on yet.';
-  if (playerId === round.bidderId) return 'You cannot call Liar on your own bid.';
   if (playerId === round.katzelCallerId) return 'You cannot call Liar on your own Katzel.';
+  if (playerId === round.bidderId && round.katzelCallerId === null) return 'You cannot call Liar on your own bid.';
   return null;
 }
