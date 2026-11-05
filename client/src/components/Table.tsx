@@ -146,6 +146,9 @@ function Seat({ view, player, style, speech, reactions, reveal }: SeatProps) {
         <span className="seat__tags">
           {bidding !== null && bidding.bidderId === player.id && <span className="pill pill--bid">bid</span>}
           {bidding !== null && bidding.katzelCallerId === player.id && <span className="pill pill--katzel">🤞</span>}
+          {bidding !== null && bidding.lastDiePlayerId === player.id && (
+            <span className="pill pill--lastdie">last die</span>
+          )}
           {!player.connected && <span className="pill pill--offline">offline</span>}
         </span>
         <span className="seat__reactions" aria-live="polite">

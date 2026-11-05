@@ -141,6 +141,11 @@ count:
 - **Jump-in bonus:** if Liar was called out of turn and was right, the caller regains a die (max 5).
   This also applies to an out-of-turn Liar on a Katzel.
 
+**Last-die round.** Whenever a player drops from two dice to one, the next round (which they start) is special:
+nobody may bid until they have opened, the opening bid may be on any face including Pacos, and every bid that round
+must keep the opening face (only the quantity goes up). Pacos stay wild; Katzel and Liar work as usual. If their timer
+runs out, the game opens with one 2 for them. This applies with any number of players.
+
 **Next round.** The player who lost a die starts (if they were eliminated, the next player clockwise).
 The reveal stays on screen for 10 seconds. Losing your last die eliminates you; you can keep watching.
 

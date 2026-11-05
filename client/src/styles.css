@@ -238,6 +238,11 @@ input:focus-visible {
   background: var(--purple);
 }
 
+.pill--lastdie {
+  background: var(--gold);
+  color: var(--ink);
+}
+
 .pill--offline {
   background: var(--red-dark);
 }
@@ -900,6 +905,16 @@ input:focus-visible {
   background: rgba(123, 85, 199, 0.75);
   font-size: 0.72rem;
   font-weight: 700;
+  animation: pop 300ms ease-out;
+}
+
+.center-bid__lastdie {
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(224, 180, 58, 0.85);
+  color: var(--ink);
+  font-size: 0.72rem;
+  font-weight: 800;
   animation: pop 300ms ease-out;
 }
 

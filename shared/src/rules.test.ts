@@ -43,16 +43,36 @@ describe('minimumQuantity', () => {
 
 describe('describeIllegalBid', () => {
   it('rejects Pacos on the opening bid', () => {
-    expect(describeIllegalBid(null, { quantity: 2, face: 1 })).toMatch(/first bid/);
+    expect(describeIllegalBid(null, { quantity: 2, face: 1 }, false)).toMatch(/first bid/);
   });
 
   it('accepts Pacos after the opening bid', () => {
-    expect(describeIllegalBid({ quantity: 4, face: 3 }, { quantity: 2, face: 1 })).toBeNull();
+    expect(describeIllegalBid({ quantity: 4, face: 3 }, { quantity: 2, face: 1 }, false)).toBeNull();
   });
 
   it('rejects a bid that is not higher', () => {
-    expect(describeIllegalBid({ quantity: 4, face: 3 }, { quantity: 4, face: 3 })).not.toBeNull();
-    expect(describeIllegalBid({ quantity: 4, face: 3 }, { quantity: 5, face: 2 })).toBeNull();
+    expect(describeIllegalBid({ quantity: 4, face: 3 }, { quantity: 4, face: 3 }, false)).not.toBeNull();
+    expect(describeIllegalBid({ quantity: 4, face: 3 }, { quantity: 5, face: 2 }, false)).toBeNull();
+  });
+});
+
+describe('last-die round', () => {
+  it('lets the opening bid be on Pacos', () => {
+    expect(describeIllegalBid(null, { quantity: 1, face: 1 }, true)).toBeNull();
+  });
+
+  it('keeps the opening face for every later bid', () => {
+    const opening = { quantity: 2, face: 3 } as const;
+    expect(describeIllegalBid(opening, { quantity: 3, face: 3 }, true)).toBeNull();
+    expect(describeIllegalBid(opening, { quantity: 2, face: 3 }, true)).toMatch(/at least 3/);
+    expect(describeIllegalBid(opening, { quantity: 3, face: 5 }, true)).toMatch(/must be on 3s/);
+    expect(describeIllegalBid(opening, { quantity: 2, face: 1 }, true)).toMatch(/must be on 3s/);
+  });
+
+  it('keeps Pacos when the round opened on Pacos', () => {
+    const opening = { quantity: 1, face: 1 } as const;
+    expect(describeIllegalBid(opening, { quantity: 2, face: 1 }, true)).toBeNull();
+    expect(describeIllegalBid(opening, { quantity: 9, face: 6 }, true)).toMatch(/must be on Pacos/);
   });
 });
 

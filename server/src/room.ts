@@ -298,6 +298,7 @@ export class Room {
           currentBid: round.currentBid,
           bidderId: round.bidderId,
           katzelCallerId: round.katzelCallerId,
+          lastDiePlayerId: round.lastDiePlayerId,
           turnPlayerId: round.turnPlayerId,
           turnRemainingMs: Math.max(0, round.turnDeadline - Date.now()),
           myDice: this.game.diceOf(viewerId),

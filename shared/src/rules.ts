@@ -55,14 +55,34 @@ export function minimumQuantity(previous: Bid | null, face: Face): number {
   return previous.quantity * 2 + 1;
 }
 
-/** Returns why `next` cannot follow `previous`, or null if it is a legal bid. */
-export function describeIllegalBid(previous: Bid | null, next: Bid): string | null {
-  if (previous === null && isPaco(next.face)) {
-    return 'The first bid of a round cannot be on Pacos.';
+/** "Pacos" or "3s": how a face reads in a sentence. */
+export function faceName(face: Face): string {
+  return isPaco(face) ? 'Pacos' : `${face}s`;
+}
+
+/**
+ * Why a bid on `face` is not allowed at all right now (whatever the quantity), or null.
+ *  - Normal round: the opening bid cannot be on Pacos.
+ *  - Last-die round (a player just dropped to their last die): the opening bid may be on any face,
+ *    including Pacos, and every later bid must keep that face.
+ */
+export function describeBlockedFace(previous: Bid | null, face: Face, lastDieRound: boolean): string | null {
+  if (previous === null) {
+    return !lastDieRound && isPaco(face) ? 'The first bid of a round cannot be on Pacos.' : null;
   }
+  if (lastDieRound && face !== previous.face) {
+    return `Last-die round: every bid must be on ${faceName(previous.face)}.`;
+  }
+  return null;
+}
+
+/** Returns why `next` cannot follow `previous`, or null if it is a legal bid. */
+export function describeIllegalBid(previous: Bid | null, next: Bid, lastDieRound: boolean): string | null {
+  const blockedFace = describeBlockedFace(previous, next.face, lastDieRound);
+  if (blockedFace !== null) return blockedFace;
   const required = minimumQuantity(previous, next.face);
   if (next.quantity < required) {
-    return `A bid on ${next.face === PACO_FACE ? 'Pacos' : `${next.face}s`} needs at least ${required} dice.`;
+    return `A bid on ${faceName(next.face)} needs at least ${required} dice.`;
   }
   return null;
 }

@@ -194,6 +194,52 @@ describe('turn timer', () => {
   });
 });
 
+describe('last-die round', () => {
+  /** The turn player bids more 3s than exist; the next player calls Liar, so the bidder loses a die. */
+  function bidderLosesDie(game: Game, bidderId: string, callerId: string): void {
+    raise(game, bidderId, { quantity: 16, face: 3 });
+    expect(game.liar(callerId, game.seq)).toBeNull();
+  }
+
+  it('follows every drop from two dice to one, with the face locked to the opening bid', () => {
+    const { game } = createGame(['A', 'B', 'C'], 'A');
+    for (let lost = 1; lost <= 3; lost += 1) {
+      bidderLosesDie(game, 'A', 'B'); // 5 → 2 dice: normal rounds
+      game.startNextRound();
+      expect(round(game).lastDiePlayerId).toBeNull();
+    }
+    bidderLosesDie(game, 'A', 'B'); // 2 → 1 die
+    game.startNextRound();
+    expect(round(game)).toMatchObject({ lastDiePlayerId: 'A', turnPlayerId: 'A', currentBid: null });
+
+    // Nobody can jump in before the player on their last die opens…
+    expect(game.raise('B', { quantity: 1, face: 4 }, game.seq)).toMatch(/last die may open/);
+    // …who may open on Pacos, and the face then stays Pacos for everyone.
+    raise(game, 'A', { quantity: 1, face: 1 });
+    expect(game.raise('B', { quantity: 3, face: 4 }, game.seq)).toMatch(/must be on Pacos/);
+    raise(game, 'B', { quantity: 2, face: 1 });
+    expect(round(game).currentBid).toEqual({ quantity: 2, face: 1 });
+
+    // A bid on Pacos counts only Pacos, and every die rolled here is a 3: the count is 0.
+    expect(game.liar('C', game.seq)).toBeNull();
+    expect(reveal(game)).toMatchObject({ loserId: 'B', actualCount: 0 });
+    game.startNextRound();
+    expect(round(game).lastDiePlayerId).toBeNull(); // B went 5 → 4: a normal round
+  });
+
+  it('opens with one 2 for the player on their last die when their timer runs out', () => {
+    const { game } = createGame(['A', 'B'], 'A');
+    for (let lost = 1; lost <= 4; lost += 1) {
+      bidderLosesDie(game, 'A', 'B');
+      game.startNextRound();
+    }
+    expect(round(game).lastDiePlayerId).toBe('A');
+    game.handleTurnTimeout();
+    expect(round(game)).toMatchObject({ currentBid: { quantity: 1, face: 2 }, bidderId: 'A' });
+    expect(game.raise('B', { quantity: 2, face: 3 }, game.seq)).toMatch(/must be on 2s/);
+  });
+});
+
 describe('elimination', () => {
   it('ends the game when one player remains', () => {
     const { game } = createGame(['A', 'B'], 'A');

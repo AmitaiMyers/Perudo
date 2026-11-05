@@ -2,13 +2,16 @@ import { useEffect, useState, type ReactNode } from 'react';
 import {
   FACES,
   countMatchingDice,
+  describeBlockedFace,
   describeIllegalBid,
+  faceName,
   isPaco,
   minimumQuantity,
   type Bid,
   type BiddingView,
   type Face,
 } from '@perudo/shared';
+import { playerName } from '../players';
 import { BidText } from './BidText';
 import { Die } from './Die';
 
@@ -50,7 +53,8 @@ export function ActionPanel({ view, onRaise, onKatzel, onLiar }: ActionPanelProp
 
   const draft: Bid = { quantity, face };
   const minimum = minimumQuantity(currentBid, face);
-  const raiseError = describeIllegalBid(currentBid, draft);
+  const lastDieRound = view.lastDiePlayerId !== null;
+  const raiseError = describeOpeningWait(view) ?? describeIllegalBid(currentBid, draft, lastDieRound);
   const katzelBlock = describeKatzelBlock(view);
   const liarBlock = describeLiarBlock(view);
   const held = countMatchingDice(view.myDice, face);
@@ -95,18 +99,18 @@ export function ActionPanel({ view, onRaise, onKatzel, onLiar }: ActionPanelProp
 
       <div className="face-picker" role="radiogroup" aria-label="Face value">
         {FACES.map((candidate) => {
-          const blocked = currentBid === null && isPaco(candidate);
+          const blockedReason = describeBlockedFace(currentBid, candidate, lastDieRound);
           return (
             <button
               key={candidate}
               type="button"
               role="radio"
               aria-checked={candidate === face}
-              aria-label={isPaco(candidate) ? 'Pacos' : `${candidate}s`}
+              aria-label={faceName(candidate)}
               className={`face-picker__option ${candidate === face ? 'face-picker__option--selected' : ''}`}
               onClick={() => chooseFace(candidate)}
-              disabled={blocked}
-              title={blocked ? 'No Pacos on the opening bid' : undefined}
+              disabled={blockedReason !== null}
+              title={blockedReason ?? undefined}
             >
               <Die face={candidate} size={32} />
             </button>
@@ -170,6 +174,13 @@ function ActionButton({ className, label, caption, disabledReason, onClick, chil
 
 function defaultFace(currentBid: Bid | null): Face {
   return currentBid === null ? 2 : currentBid.face;
+}
+
+/** In a last-die round nobody else may bid until the player on their last die has opened. */
+function describeOpeningWait(view: BiddingView): string | null {
+  const opener = view.lastDiePlayerId;
+  if (opener === null || view.currentBid !== null || opener === view.myPlayerId) return null;
+  return `Waiting for ${playerName(view.players, opener)} to open this last-die round.`;
 }
 
 function describeKatzelBlock(view: BiddingView): string | null {

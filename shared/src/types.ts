@@ -65,6 +65,11 @@ export interface BiddingView extends RoomViewBase {
   currentBid: Bid | null;
   bidderId: string | null;
   katzelCallerId: string | null;
+  /**
+   * Set in a last-die round: the player who just dropped to one die. Only they may open, and every
+   * bid in the round keeps the opening bid's face.
+   */
+  lastDiePlayerId: string | null;
   turnPlayerId: string;
   turnRemainingMs: number;
   myDice: Face[];

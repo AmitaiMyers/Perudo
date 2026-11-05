@@ -66,6 +66,11 @@ export function HowToPlay({ variant }: { variant: 'icon' | 'text' }) {
             Think the bid is too high? Call Liar. All cups lift. Fewer dice than bid: the bidder loses a die. Otherwise
             the caller loses one. Jumped in and were right? You win a die back (max 5).
           </Rule>
+          <Rule title="🎯 Last die">
+            Whenever a player drops to their last die, the next round is special: they open it (nobody can jump in
+            first), the opening bid may be on any face (Pacos too), and every bid that round must stay on that face.
+            Pacos stay wild.
+          </Rule>
           <Rule title="🔁 Next round">Whoever lost a die starts. No dice left: you are out.</Rule>
 
           <button type="button" className="button button--primary" onClick={() => dialog().close()}>

@@ -27,6 +27,8 @@ export interface RoundState {
   currentBid: Bid | null;
   bidderId: string | null;
   katzelCallerId: string | null;
+  /** Last-die round: the player who just dropped to one die (they open; the opening face is kept). */
+  lastDiePlayerId: string | null;
   turnPlayerId: string;
   turnDeadline: number;
   lastAction: ActionNotice | null;
@@ -34,7 +36,15 @@ export interface RoundState {
 
 export type GamePhase =
   | { kind: 'bidding'; round: RoundState }
-  | { kind: 'reveal'; roundNumber: number; reveal: RevealSummary; revealEndsAt: number; nextStarterId: string }
+  | {
+      kind: 'reveal';
+      roundNumber: number;
+      reveal: RevealSummary;
+      revealEndsAt: number;
+      nextStarterId: string;
+      /** The loser if they just dropped from two dice to one: the next round is their last-die round. */
+      nextLastDiePlayerId: string | null;
+    }
   | { kind: 'gameOver'; reveal: RevealSummary; winnerId: string };
 
 /** Error message returned to the acting player, or null when the action was applied. */
@@ -56,7 +66,7 @@ export class Game {
     private readonly deps: GameDependencies,
   ) {
     this.players = seatOrder.map((id) => ({ id, diceCount: MAX_DICE, dice: [] }));
-    this.currentPhase = { kind: 'bidding', round: this.rollNewRound(1, starterId) };
+    this.currentPhase = { kind: 'bidding', round: this.rollNewRound(1, starterId, null) };
   }
 
   get phase(): GamePhase {
@@ -78,7 +88,11 @@ export class Game {
   raise(playerId: string, bid: Bid, seq: number): ActionResult {
     const round = this.roundForAction(playerId, seq);
     if (typeof round === 'string') return round;
-    const illegal = describeIllegalBid(round.currentBid, bid);
+    const lastDieRound = round.lastDiePlayerId !== null;
+    if (lastDieRound && round.currentBid === null && playerId !== round.lastDiePlayerId) {
+      return 'Only the player on their last die may open this round.';
+    }
+    const illegal = describeIllegalBid(round.currentBid, bid, lastDieRound);
     if (illegal !== null) return illegal;
     this.applyRaise(round, playerId, bid, false);
     return null;
@@ -123,7 +137,10 @@ export class Game {
   startNextRound(): void {
     const phase = this.currentPhase;
     if (phase.kind !== 'reveal') throw new Error(`Cannot start a round during phase "${phase.kind}".`);
-    this.currentPhase = { kind: 'bidding', round: this.rollNewRound(phase.roundNumber + 1, phase.nextStarterId) };
+    this.currentPhase = {
+      kind: 'bidding',
+      round: this.rollNewRound(phase.roundNumber + 1, phase.nextStarterId, phase.nextLastDiePlayerId),
+    };
     this.sequence += 1;
   }
 
@@ -202,6 +219,8 @@ export class Game {
         reveal,
         revealEndsAt: this.deps.now() + REVEAL_DURATION_MS,
         nextStarterId: loser.diceCount > 0 ? loser.id : this.nextActivePlayerAfter(loser.id),
+        // Every drop from two dice to one triggers a last-die round (the loser starts it, so they open).
+        nextLastDiePlayerId: loser.diceCount === 1 ? loser.id : null,
       };
     }
     this.sequence += 1;
@@ -223,7 +242,7 @@ export class Game {
     this.sequence += 1;
   }
 
-  private rollNewRound(number: number, starterId: string): RoundState {
+  private rollNewRound(number: number, starterId: string, lastDiePlayerId: string | null): RoundState {
     for (const player of this.players) {
       player.dice = Array.from({ length: player.diceCount }, () => this.deps.rollDie());
     }
@@ -232,6 +251,7 @@ export class Game {
       currentBid: null,
       bidderId: null,
       katzelCallerId: null,
+      lastDiePlayerId,
       turnPlayerId: starterId,
       turnDeadline: this.deps.now() + TURN_DURATION_MS,
       lastAction: null,

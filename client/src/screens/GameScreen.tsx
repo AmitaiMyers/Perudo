@@ -1,5 +1,5 @@
 import { useEffect, type ReactNode } from 'react';
-import type { BiddingView, GameOverView, RevealView } from '@perudo/shared';
+import { faceName, type BiddingView, type GameOverView, type RevealView } from '@perudo/shared';
 import { ActionPanel } from '../components/ActionPanel';
 import { Avatar } from '../components/Avatar';
 import { BidText } from '../components/BidText';
@@ -36,6 +36,9 @@ export function GameScreen({ view, room, chat }: { view: InGameView; room: RoomC
 function BiddingLayout({ view, room, chat }: { view: BiddingView; room: RoomController; chat: ChatController }) {
   const me = findPlayer(view.players, view.myPlayerId);
   const isMyTurn = view.turnPlayerId === view.myPlayerId;
+  // In a last-die round nobody may jump in before the player on their last die has opened.
+  const waitingForLastDieOpener = view.lastDiePlayerId !== null && view.currentBid === null;
+  const canJumpIn = !me.eliminated && !waitingForLastDieOpener;
 
   return (
     <GameFrame
@@ -61,7 +64,7 @@ function BiddingLayout({ view, room, chat }: { view: BiddingView; room: RoomCont
               <span className="dock__whose">
                 <Avatar players={view.players} playerId={view.turnPlayerId} size={22} />
                 {playerName(view.players, view.turnPlayerId)}&rsquo;s turn
-                {!me.eliminated && <span className="dock__jump"> · jump in ⚡</span>}
+                {canJumpIn && <span className="dock__jump"> · jump in ⚡</span>}
               </span>
             )}
             <TurnTimer key={view.seq} remainingMs={view.turnRemainingMs} isMyTurn={isMyTurn} />
@@ -226,7 +229,9 @@ function BidCenter({ view }: { view: BiddingView }) {
       {currentBid === null || bidderId === null ? (
         <>
           <span className="center-bid__who">{nameOrYou(view.turnPlayerId)} to open</span>
-          <span className="center-bid__hint">no Pacos on the first bid</span>
+          <span className="center-bid__hint">
+            {view.lastDiePlayerId === null ? 'no Pacos on the first bid' : 'any face, Pacos too'}
+          </span>
         </>
       ) : (
         <>
@@ -242,6 +247,12 @@ function BidCenter({ view }: { view: BiddingView }) {
             <BidText bid={currentBid} dieSize={30} />
           </span>
         </>
+      )}
+      {view.lastDiePlayerId !== null && (
+        <span className="center-bid__lastdie">
+          🎯 Last die for {nameOrYou(view.lastDiePlayerId)}:{' '}
+          {currentBid === null ? 'the first bid fixes the face' : `only ${faceName(currentBid.face)} this round`}
+        </span>
       )}
       {view.katzelCallerId !== null && (
         <span className="center-bid__katzel">🤞 {nameOrYou(view.katzelCallerId)}: Katzel (exact)</span>
