@@ -1,17 +1,172 @@
-import type { ActionNotice, BiddingView, GameOverView, PublicPlayer, RevealView } from '@perudo/shared';
+import { useEffect, type ReactNode } from 'react';
+import type { BiddingView, GameOverView, RevealView } from '@perudo/shared';
 import { ActionPanel } from '../components/ActionPanel';
+import { Avatar } from '../components/Avatar';
 import { BidText } from '../components/BidText';
-import { Die } from '../components/Die';
-import { PlayerSeat } from '../components/PlayerSeat';
-import { RevealPanel } from '../components/RevealPanel';
+import { Confetti } from '../components/Confetti';
+import { HowToPlay } from '../components/HowToPlay';
+import { Icon } from '../components/Icon';
+import { MyDice } from '../components/MyDice';
+import { ReactionPicker } from '../components/ReactionPicker';
+import { RevealCounter, RevealSummary } from '../components/RevealSummary';
+import { SoundToggle } from '../components/SoundToggle';
+import { Table, type InGameView } from '../components/Table';
 import { TurnTimer } from '../components/TurnTimer';
-import { describeActionTags, findPlayer, playerName } from '../players';
+import { describeActionTags, findPlayer, playerName, playerTheme } from '../players';
+import { playSound } from '../sound';
 import { useCountdown } from '../useCountdown';
+import { useGameEffects } from '../useGameEffects';
+import { useRevealStage } from '../useRevealStage';
 import type { RoomController } from '../useRoom';
 
-type InGameView = BiddingView | RevealView | GameOverView;
+/** Delay after the final die animation before the winner celebration starts. */
+const CELEBRATION_DELAY_MS = 600;
 
 export function GameScreen({ view, room }: { view: InGameView; room: RoomController }) {
+  useGameEffects(view);
+  if (view.phase === 'bidding') return <BiddingLayout view={view} room={room} />;
+  if (view.phase === 'reveal') return <RevealLayout key={view.roundNumber} view={view} room={room} />;
+  return <GameOverLayout view={view} room={room} />;
+}
+
+// ── Layouts per phase ───────────────────────────────────────────────────────
+
+function BiddingLayout({ view, room }: { view: BiddingView; room: RoomController }) {
+  const me = findPlayer(view.players, view.myPlayerId);
+  const isMyTurn = view.turnPlayerId === view.myPlayerId;
+
+  return (
+    <GameFrame
+      view={view}
+      room={room}
+      status={`Round ${view.roundNumber}`}
+      table={<Table view={view} reactions={room.reactions} reveal={null} center={<BidCenter view={view} />} />}
+      bottom={
+        <div className={`dock ${isMyTurn ? 'dock--my-turn' : ''}`}>
+          <div className="dock__turn">
+            {isMyTurn ? (
+              <span className="your-turn">Your turn!</span>
+            ) : (
+              <span className="dock__whose">
+                <Avatar players={view.players} playerId={view.turnPlayerId} size={22} />
+                {playerName(view.players, view.turnPlayerId)}&rsquo;s turn
+                {!me.eliminated && <span className="dock__jump"> · jump in ⚡</span>}
+              </span>
+            )}
+            <TurnTimer key={view.seq} remainingMs={view.turnRemainingMs} isMyTurn={isMyTurn} />
+          </div>
+          {me.eliminated ? (
+            <p className="notice">You are out of dice. Enjoy the show 🍿</p>
+          ) : (
+            <>
+              <MyDice key={view.roundNumber} dice={view.myDice} theme={playerTheme(view.players, view.myPlayerId)} />
+              <ActionPanel
+                view={view}
+                onRaise={(bid) => room.raise(bid, view.seq)}
+                onKatzel={() => room.katzel(view.seq)}
+                onLiar={() => room.liar(view.seq)}
+              />
+            </>
+          )}
+        </div>
+      }
+    />
+  );
+}
+
+function RevealLayout({ view, room }: { view: RevealView; room: RoomController }) {
+  const stage = useRevealStage(view.reveal, view.players, view.myPlayerId, `round-${view.roundNumber}`);
+  const left = useCountdown(view.nextRoundInMs);
+  return (
+    <GameFrame
+      view={view}
+      room={room}
+      status={`Next round ${Math.ceil(left / 1000)}s`}
+      table={
+        <Table
+          view={view}
+          reactions={room.reactions}
+          reveal={{ summary: view.reveal, stage }}
+          center={<RevealCounter reveal={view.reveal} stage={stage} />}
+        />
+      }
+      bottom={
+        <div className="dock dock--summary">
+          <RevealSummary reveal={view.reveal} players={view.players} stage={stage} />
+        </div>
+      }
+    />
+  );
+}
+
+function GameOverLayout({ view, room }: { view: GameOverView; room: RoomController }) {
+  const stage = useRevealStage(view.reveal, view.players, view.myPlayerId, 'final');
+  const isHost = findPlayer(view.players, view.myPlayerId).isHost;
+  const iWon = view.winnerId === view.myPlayerId;
+  // The winner is celebrated once the last die has left the loser's cup.
+  const celebrate = stage.settled;
+
+  useEffect(() => {
+    if (!celebrate || !iWon) return;
+    const timeout = window.setTimeout(() => playSound('fanfare'), CELEBRATION_DELAY_MS);
+    return () => window.clearTimeout(timeout);
+  }, [celebrate, iWon]);
+
+  return (
+    <GameFrame
+      view={view}
+      room={room}
+      status="Game over"
+      table={
+        <Table
+          view={view}
+          reactions={room.reactions}
+          reveal={{ summary: view.reveal, stage }}
+          center={
+            celebrate ? (
+              <div className="center-winner" role="status">
+                <span className="center-winner__trophy">🏆</span>
+                <span className="center-winner__name">
+                  {iWon ? 'You win!' : `${playerName(view.players, view.winnerId)} wins!`}
+                </span>
+              </div>
+            ) : (
+              <RevealCounter reveal={view.reveal} stage={stage} />
+            )
+          }
+        />
+      }
+      bottom={
+        <div className="dock dock--summary">
+          <RevealSummary reveal={view.reveal} players={view.players} stage={stage} />
+          {isHost ? (
+            <button type="button" className="button button--primary button--block" onClick={room.rematch}>
+              Rematch 🎲
+            </button>
+          ) : (
+            <p className="dock__next">Waiting for the host to start a rematch…</p>
+          )}
+          {celebrate && <Confetti />}
+        </div>
+      }
+    />
+  );
+}
+
+// ── Shared pieces ───────────────────────────────────────────────────────────
+
+interface GameFrameProps {
+  view: InGameView;
+  room: RoomController;
+  /** Short text in the top bar pill (round number, next-round countdown…). */
+  status: string;
+  table: ReactNode;
+  /** Bottom area: the player's controls while bidding, the round summary otherwise. */
+  bottom: ReactNode;
+}
+
+/** Top bar, the round table, and a bottom area that changes with the phase. */
+function GameFrame({ view, room, status, table, bottom }: GameFrameProps) {
   const confirmLeave = () => {
     const message =
       view.phase === 'gameOver'
@@ -21,136 +176,60 @@ export function GameScreen({ view, room }: { view: InGameView; room: RoomControl
   };
 
   return (
-    <main className="screen game">
-      <header className="game__header">
-        <span>
-          Room <strong>{view.roomCode}</strong>
+    <main className="game">
+      <header className="topbar">
+        <span className="topbar__room">
+          <span className="topbar__room-label">Room </span>
+          <strong>{view.roomCode}</strong>
         </span>
-        {view.phase !== 'gameOver' && <span>Round {view.roundNumber}</span>}
-        <button type="button" className="button button--ghost button--small" onClick={confirmLeave}>
-          Leave
-        </button>
+        <span className="topbar__round">{status}</span>
+        <span className="topbar__actions">
+          <ReactionPicker onReact={room.react} />
+          <SoundToggle />
+          <HowToPlay variant="icon" />
+          <button type="button" className="icon-button" onClick={confirmLeave} aria-label="Leave room">
+            <Icon name="exit" />
+          </button>
+        </span>
       </header>
-
-      <SeatList view={view} />
-
-      {view.phase === 'bidding' && <BiddingPhase view={view} room={room} />}
-      {view.phase === 'reveal' && <RevealPhase view={view} />}
-      {view.phase === 'gameOver' && <GameOverPhase view={view} room={room} />}
+      {table}
+      {bottom}
     </main>
   );
 }
 
-function SeatList({ view }: { view: InGameView }) {
-  const bidding = view.phase === 'bidding' ? view : null;
-  return (
-    <ul className="seats">
-      {view.players.map((player) => (
-        <PlayerSeat
-          key={player.id}
-          player={player}
-          isMe={player.id === view.myPlayerId}
-          isTurn={bidding !== null && bidding.turnPlayerId === player.id}
-          isBidder={bidding !== null && bidding.bidderId === player.id}
-          isKatzelCaller={bidding !== null && bidding.katzelCallerId === player.id}
-        />
-      ))}
-    </ul>
-  );
-}
-
-function BiddingPhase({ view, room }: { view: BiddingView; room: RoomController }) {
-  const turnName = playerName(view.players, view.turnPlayerId);
-  const isMyTurn = view.turnPlayerId === view.myPlayerId;
-  const me = findPlayer(view.players, view.myPlayerId);
+/** Middle of the table while bidding: the bid to beat, a pending Katzel, and how many dice are in play. */
+function BidCenter({ view }: { view: BiddingView }) {
+  const { currentBid, bidderId, lastAction } = view;
+  const totalDice = view.players.reduce((total, player) => total + player.diceCount, 0);
+  const nameOrYou = (playerId: string) => (playerId === view.myPlayerId ? 'You' : playerName(view.players, playerId));
 
   return (
-    <>
-      <section className="table-center" aria-live="polite">
-        {view.currentBid === null || view.bidderId === null ? (
-          <p className="table-center__waiting">Waiting for the opening bid…</p>
-        ) : (
-          <>
-            <p className="table-center__label">Current bid by {playerName(view.players, view.bidderId)}</p>
-            <span className="table-center__bid">
-              <BidText bid={view.currentBid} dieSize={44} />
-            </span>
-          </>
-        )}
-        {view.katzelCallerId !== null && (
-          <p className="table-center__katzel">
-            {playerName(view.players, view.katzelCallerId)} called Katzel: a Liar call will now check for an{' '}
-            <strong>exact</strong> count.
-          </p>
-        )}
-        {view.lastAction !== null && (
-          <p className="table-center__last">{describeNotice(view.lastAction, view.players)}</p>
-        )}
-      </section>
-
-      <section className="turn">
-        <p className="turn__who">{isMyTurn ? 'Your turn!' : `${turnName}'s turn`}</p>
-        <TurnTimer key={view.seq} remainingMs={view.turnRemainingMs} />
-      </section>
-
-      {me.eliminated ? (
-        <p className="notice">You are out of dice. Watch the rest of the game!</p>
+    <div className="center-bid" aria-live="polite">
+      {currentBid === null || bidderId === null ? (
+        <>
+          <span className="center-bid__who">{nameOrYou(view.turnPlayerId)} to open</span>
+          <span className="center-bid__hint">no Pacos on the first bid</span>
+        </>
       ) : (
         <>
-          <section className="my-dice" aria-label="Your dice (only you can see them)">
-            {view.myDice.map((face, index) => (
-              <Die key={index} face={face} size={52} />
-            ))}
-          </section>
-          <ActionPanel
-            view={view}
-            onRaise={(quantity, face) => room.raise({ quantity, face }, view.seq)}
-            onKatzel={() => room.katzel(view.seq)}
-            onLiar={() => room.liar(view.seq)}
-          />
+          <span className="center-bid__who">
+            {nameOrYou(bidderId)} bid
+            {lastAction !== null && lastAction.kind === 'raise' && (
+              <span className="center-bid__tags">
+                {describeActionTags(lastAction.interruption, lastAction.forcedByTimeout)}
+              </span>
+            )}
+          </span>
+          <span key={`${currentBid.quantity}x${currentBid.face}`} className="center-bid__bid">
+            <BidText bid={currentBid} dieSize={30} />
+          </span>
         </>
       )}
-    </>
-  );
-}
-
-function RevealPhase({ view }: { view: RevealView }) {
-  const left = useCountdown(view.nextRoundInMs);
-  return (
-    <>
-      <RevealPanel reveal={view.reveal} players={view.players} />
-      <p className="notice">Next round in {Math.ceil(left / 1000)}s…</p>
-    </>
-  );
-}
-
-function GameOverPhase({ view, room }: { view: GameOverView; room: RoomController }) {
-  const isHost = findPlayer(view.players, view.myPlayerId).isHost;
-  const iWon = view.winnerId === view.myPlayerId;
-  return (
-    <>
-      <section className="winner">
-        <p className="winner__title">{iWon ? 'You win!' : `${playerName(view.players, view.winnerId)} wins!`}</p>
-      </section>
-      <RevealPanel reveal={view.reveal} players={view.players} />
-      {isHost ? (
-        <button type="button" className="button button--primary" onClick={room.rematch}>
-          Rematch with everyone still here
-        </button>
-      ) : (
-        <p className="notice">Waiting for the host to start a rematch…</p>
+      {view.katzelCallerId !== null && (
+        <span className="center-bid__katzel">🤞 {nameOrYou(view.katzelCallerId)}: Katzel (exact)</span>
       )}
-    </>
-  );
-}
-
-function describeNotice(notice: ActionNotice, players: PublicPlayer[]) {
-  const actor = playerName(players, notice.playerId);
-  const suffix = describeActionTags(notice.interruption, notice.forcedByTimeout);
-  return (
-    <>
-      {actor} {notice.kind === 'katzel' ? 'called Katzel on' : 'bid'} <BidText bid={notice.bid} dieSize={18} />
-      {suffix}
-    </>
+      <span className="center-bid__total">🎲 {totalDice} dice in play</span>
+    </div>
   );
 }

@@ -2,7 +2,14 @@ import type { AddressInfo } from 'node:net';
 import type { Server as HttpServer } from 'node:http';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { io as connect, type Socket } from 'socket.io-client';
-import type { BiddingView, ClientToServerEvents, RoomView, ServerToClientEvents, SessionInfo } from '@perudo/shared';
+import type {
+  BiddingView,
+  ClientToServerEvents,
+  Reaction,
+  RoomView,
+  ServerToClientEvents,
+  SessionInfo,
+} from '@perudo/shared';
 import { createGameServer } from './app';
 
 type ClientSocket = Socket<ServerToClientEvents, ClientToServerEvents>;
@@ -173,6 +180,23 @@ describe('multiplayer flow over Socket.io', () => {
     expect(await client.socket.emitWithAck('game:start')).toEqual({
       ok: false,
       error: 'At least 2 players are needed.',
+    });
+  });
+
+  it('broadcasts emoji reactions to the room and rate-limits them', async () => {
+    const host = await newClient();
+    const guest = await newClient();
+    const hostSession = expectSession(await host.socket.emitWithAck('room:create', { name: 'Host' }));
+    expectSession(await guest.socket.emitWithAck('room:join', { roomCode: hostSession.roomCode, name: 'Guest' }));
+
+    const received = new Promise<Reaction>((resolve) => guest.socket.once('room:reaction', resolve));
+    expect(await host.socket.emitWithAck('room:react', { emoji: '🔥' })).toEqual({ ok: true });
+    expect(await received).toMatchObject({ playerId: hostSession.playerId, emoji: '🔥' });
+
+    expect(await host.socket.emitWithAck('room:react', { emoji: '🔥' })).toMatchObject({ ok: false });
+    expect(await guest.socket.emitWithAck('room:react', { emoji: '💩' })).toEqual({
+      ok: false,
+      error: 'Unknown reaction.',
     });
   });
 });

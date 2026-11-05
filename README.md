@@ -14,7 +14,7 @@ Real-time multiplayer Perudo (Liar's Dice) with **Pacos**, **Katzel** and **jump
 ├── render.yaml                    # Render Blueprint for the game server
 ├── package.json                   # npm workspaces root (shared, server, client)
 ├── shared/src/
-│   ├── constants.ts               # MAX_DICE, TURN_DURATION_MS, player limits…
+│   ├── constants.ts               # MAX_DICE, TURN_DURATION_MS, player limits, reaction emoji…
 │   ├── types.ts                   # RoomView (per-player state), socket event contracts
 │   ├── rules.ts                   # bid legality, Paco conversion, counting, Liar/Katzel resolution
 │   └── rules.test.ts
@@ -39,7 +39,10 @@ Real-time multiplayer Perudo (Liar's Dice) with **Pacos**, **Katzel** and **jump
         ├── useRoom.ts             # socket state + actions, auto-resume of a saved seat
         ├── socket.ts, session.ts  # connection URL, per-tab session storage
         ├── screens/               # HomeScreen, LobbyScreen, GameScreen
-        └── components/            # Die (with Paco bird), ActionPanel, TurnTimer, RevealPanel…
+        ├── sound.ts               # Web Audio sound effects + vibration (no audio files)
+        ├── useGameEffects.ts      # plays sounds on table events
+        ├── useRevealStage.ts      # timing of the step-by-step reveal
+        └── components/            # Table (seats, cups, die animations), Cup, Die, ActionPanel, RevealSummary…
 ```
 
 ## Run locally
@@ -140,7 +143,7 @@ count:
   This also applies to an out-of-turn Liar on a Katzel.
 
 **Next round.** The player who lost a die starts (if they were eliminated, the next player clockwise).
-The reveal stays on screen for 8 seconds. Losing your last die eliminates you; you can keep watching.
+The reveal stays on screen for 10 seconds. Losing your last die eliminates you; you can keep watching.
 
 ### Lobby, reconnects and rematch
 
@@ -151,6 +154,30 @@ The reveal stays on screen for 8 seconds. Losing your last die eliminates you; y
   30 seconds; during a game it is kept. **Leave** during a game keeps your seat (the timer plays for you).
 - **Rematch:** after the game the host restarts with every player still connected.
 - Rooms with nobody connected are deleted after 10 minutes.
+
+## Playing experience
+
+- **Round table:** players sit around an oval felt table, each behind their own colored, patterned cup (red, blue,
+  yellow, green, magenta, orange). Every phone puts you at the bottom, with play running clockwise. Each cup shows its
+  owner's **dice count** for everyone, and the middle of the table shows the current bid and the total dice in play.
+- **Your dice match your cup.** At the reveal the cups lift one at a time to show each player's colored dice
+  (matching dice glow) while the count ticks up in the middle of the table.
+- **Losing and winning dice:** after the verdict the loser's cup comes back down and a die pops out and flies away
+  (−1); a correct jump-in caller gets a die that flies into their cup, which bounces (+1). An eliminated player's
+  cup is left lying on its side.
+
+- **Your turn is unmistakable:** a glowing dock, a "YOUR TURN!" badge, a chime (plus vibration on Android), a ring
+  draining around the active player's avatar, and ticks in your last 5 seconds.
+- **Bid builder:** the bid you are about to make is previewed between the − / + buttons ("3 × ⚃") with a hint of how
+  many you hold yourself; illegal options are disabled and every disabled button says why.
+- **Liar needs two taps** ("Sure? tap again", 2 s window), so a mis-tap can't end the round; a new bid disarms it.
+- **Dramatic reveal:** cups lift one player at a time, the matching count ticks up, then a big ✔ / ✘ verdict lands and
+  the loser's seat shakes (the bonus winner's glows green).
+- **Fun:** cup-shake and dice-tumble at the start of each round, emoji reactions (😀 button in the top bar, 1 per
+  second), synthesized sound effects with a mute toggle, and confetti + fanfare for the winner.
+- **Help:** "How to play" sheet on the home screen, in the lobby and behind the **?** in game.
+- **Accessibility:** respects the OS _reduce motion_ setting (no shakes, tumbles, staged reveal or confetti), 44 px+
+  touch targets, labelled controls.
 
 ## How it works
 

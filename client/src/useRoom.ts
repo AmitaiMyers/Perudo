@@ -1,9 +1,12 @@
 import { useCallback, useEffect, useState } from 'react';
-import type { AckResult, Bid, RoomView, SessionInfo } from '@perudo/shared';
+import type { AckResult, Bid, Reaction, RoomView, SessionInfo } from '@perudo/shared';
 import { socket } from './socket';
 import { clearSession, loadSession, saveSession } from './session';
+import { playSound } from './sound';
 
 const ERROR_DISPLAY_MS = 4_000;
+/** How long an emoji bubble floats over a seat. */
+const REACTION_DISPLAY_MS = 2_400;
 
 export interface RoomController {
   view: RoomView | null;
@@ -11,6 +14,8 @@ export interface RoomController {
   /** True while a saved seat is being reclaimed after a refresh or reconnect. */
   resuming: boolean;
   error: string | null;
+  /** Emoji bubbles currently floating over seats. */
+  reactions: Reaction[];
   dismissError: () => void;
   createRoom: (name: string) => void;
   joinRoom: (roomCode: string, name: string) => void;
@@ -20,6 +25,7 @@ export interface RoomController {
   raise: (bid: Bid, seq: number) => void;
   katzel: (seq: number) => void;
   liar: (seq: number) => void;
+  react: (emoji: string) => void;
 }
 
 export function useRoom(): RoomController {
@@ -27,6 +33,7 @@ export function useRoom(): RoomController {
   const [connected, setConnected] = useState(socket.connected);
   const [resuming, setResuming] = useState(loadSession() !== null);
   const [error, setError] = useState<string | null>(null);
+  const [reactions, setReactions] = useState<Reaction[]>([]);
 
   useEffect(() => {
     // Every (re)connect gets a fresh socket on the server, so reclaim the saved seat each time.
@@ -44,15 +51,25 @@ export function useRoom(): RoomController {
       });
     };
     const handleDisconnect = () => setConnected(false);
+    const handleReaction = (reaction: Reaction) => {
+      playSound('pop');
+      setReactions((current) => [...current, reaction]);
+      window.setTimeout(
+        () => setReactions((current) => current.filter((candidate) => candidate.id !== reaction.id)),
+        REACTION_DISPLAY_MS,
+      );
+    };
 
     socket.on('connect', handleConnect);
     socket.on('disconnect', handleDisconnect);
     socket.on('room:state', setView);
+    socket.on('room:reaction', handleReaction);
     if (socket.connected) handleConnect();
     return () => {
       socket.off('connect', handleConnect);
       socket.off('disconnect', handleDisconnect);
       socket.off('room:state', setView);
+      socket.off('room:reaction', handleReaction);
     };
   }, []);
 
@@ -81,6 +98,7 @@ export function useRoom(): RoomController {
     connected,
     resuming,
     error,
+    reactions,
     dismissError: () => setError(null),
     createRoom: (name) => void socket.emitWithAck('room:create', { name }).then(enterRoom),
     joinRoom: (roomCode, name) => void socket.emitWithAck('room:join', { roomCode, name }).then(enterRoom),
@@ -94,5 +112,6 @@ export function useRoom(): RoomController {
     raise: (bid, seq) => void socket.emitWithAck('game:raise', { bid, seq }).then(reportFailure),
     katzel: (seq) => void socket.emitWithAck('game:katzel', { seq }).then(reportFailure),
     liar: (seq) => void socket.emitWithAck('game:liar', { seq }).then(reportFailure),
+    react: (emoji) => void socket.emitWithAck('room:react', { emoji }).then(reportFailure),
   };
 }

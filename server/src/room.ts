@@ -4,9 +4,12 @@ import {
   MAX_PLAYERS,
   MIN_PLAYERS,
   NAME_MAX_LENGTH,
+  REACTION_COOLDOWN_MS,
+  REACTION_EMOJIS,
   type Bid,
   type Face,
   type PublicPlayer,
+  type Reaction,
   type RoomView,
   type SessionInfo,
 } from '@perudo/shared';
@@ -23,10 +26,12 @@ interface Member {
   readonly token: string;
   socketId: string | null;
   lobbyRemovalTimer: NodeJS.Timeout | null;
+  lastReactionAt: number;
 }
 
 export interface RoomHooks {
   emitState: (socketId: string, view: RoomView) => void;
+  emitReaction: (socketId: string, reaction: Reaction) => void;
   /** Called once the room should be forgotten (everyone left or went idle). */
   onClosed: (roomCode: string) => void;
 }
@@ -37,6 +42,7 @@ export class Room {
   private game: Game | null = null;
   private phaseTimer: NodeJS.Timeout | null = null;
   private idleTimer: NodeJS.Timeout | null = null;
+  private nextReactionId = 1;
 
   constructor(
     readonly code: string,
@@ -54,7 +60,14 @@ export class Room {
     const nameTaken = this.members.some((member) => member.name.toLowerCase() === name.toLowerCase());
     if (nameTaken) return 'That name is already taken in this room.';
 
-    const member: Member = { id: randomUUID(), name, token: randomUUID(), socketId, lobbyRemovalTimer: null };
+    const member: Member = {
+      id: randomUUID(),
+      name,
+      token: randomUUID(),
+      socketId,
+      lobbyRemovalTimer: null,
+      lastReactionAt: 0,
+    };
     this.members.push(member);
     this.handOverHostIfAbsent();
     this.cancelIdleTimer();
@@ -99,6 +112,23 @@ export class Room {
     this.handOverHostIfAbsent();
     this.startIdleTimerIfEmpty();
     this.broadcast();
+  }
+
+  /** Floats an emoji over the player's seat for everyone in the room. */
+  react(playerId: string, emoji: unknown): string | null {
+    if (typeof emoji !== 'string' || !(REACTION_EMOJIS as readonly string[]).includes(emoji)) {
+      return 'Unknown reaction.';
+    }
+    const member = this.requireMember(playerId);
+    const now = Date.now();
+    if (now - member.lastReactionAt < REACTION_COOLDOWN_MS) return 'Easy there! One reaction per second.';
+    member.lastReactionAt = now;
+    const reaction: Reaction = { id: this.nextReactionId, playerId, emoji };
+    this.nextReactionId += 1;
+    for (const recipient of this.members) {
+      if (recipient.socketId !== null) this.hooks.emitReaction(recipient.socketId, reaction);
+    }
+    return null;
   }
 
   // ── Game lifecycle ────────────────────────────────────────────────────────

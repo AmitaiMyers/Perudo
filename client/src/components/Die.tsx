@@ -1,4 +1,6 @@
+import type { CSSProperties } from 'react';
 import type { Face } from '@perudo/shared';
+import type { PlayerTheme } from '../players';
 
 const PIP_POSITIONS: Record<Exclude<Face, 1>, Array<[number, number]>> = {
   2: [
@@ -39,13 +41,16 @@ interface DieProps {
   /** Visually marks a die that counts toward the bid during a reveal. */
   highlighted?: boolean;
   dimmed?: boolean;
+  /** Color the die like its owner's cup; without a theme the die is neutral ivory. */
+  theme?: PlayerTheme | null;
 }
 
-export function Die({ face, size = 44, highlighted = false, dimmed = false }: DieProps) {
+export function Die({ face, size = 44, highlighted = false, dimmed = false, theme = null }: DieProps) {
   const className = ['die', highlighted ? 'die--highlighted' : '', dimmed ? 'die--dimmed' : ''].join(' ');
   return (
     <svg
       className={className}
+      style={theme === null ? undefined : themeStyle(theme)}
       width={size}
       height={size}
       viewBox="0 0 100 100"
@@ -62,6 +67,18 @@ export function Die({ face, size = 44, highlighted = false, dimmed = false }: Di
   );
 }
 
+/** CSS variables read by the die styles (body, edge, pips and the Paco bird). */
+function themeStyle(theme: PlayerTheme): CSSProperties {
+  return {
+    '--die-body': theme.cup,
+    '--die-edge': theme.shade,
+    '--die-pip': theme.pip,
+    '--die-bird': theme.pip,
+    '--die-wing': theme.shade,
+    '--die-eye': theme.cup,
+  } as CSSProperties;
+}
+
 /** The bird drawn on the Paco face (same artwork as the app icon). */
 function PacoBird() {
   return (
@@ -76,9 +93,4 @@ function PacoBird() {
       <circle cx="328" cy="206" r="9" className="die__eye" />
     </g>
   );
-}
-
-/** A face-down die: the player's cup is still covering it. */
-export function HiddenDie({ size = 18 }: { size?: number }) {
-  return <span className="hidden-die" style={{ width: size, height: size }} aria-hidden="true" />;
 }

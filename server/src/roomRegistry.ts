@@ -8,12 +8,12 @@ const ROOM_CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
 export class RoomRegistry {
   private readonly rooms = new Map<string, Room>();
 
-  constructor(private readonly emitState: RoomHooks['emitState']) {}
+  constructor(private readonly emitters: Pick<RoomHooks, 'emitState' | 'emitReaction'>) {}
 
   create(): Room {
     const code = this.generateUniqueCode();
     const room = new Room(code, {
-      emitState: this.emitState,
+      ...this.emitters,
       onClosed: (closedCode) => this.rooms.delete(closedCode),
     });
     this.rooms.set(code, room);

@@ -86,6 +86,14 @@ export interface GameOverView extends RoomViewBase {
 
 export type RoomView = LobbyView | BiddingView | RevealView | GameOverView;
 
+/** A short-lived emoji shown over a player's seat. Not part of the room state. */
+export interface Reaction {
+  /** Unique within the room, so clients can key and expire each bubble. */
+  id: number;
+  playerId: string;
+  emoji: string;
+}
+
 export interface SessionInfo {
   roomCode: string;
   playerId: string;
@@ -106,8 +114,10 @@ export interface ClientToServerEvents {
   'game:katzel': (payload: { seq: number }, ack: Ack) => void;
   'game:liar': (payload: { seq: number }, ack: Ack) => void;
   'game:rematch': (ack: Ack) => void;
+  'room:react': (payload: { emoji: string }, ack: Ack) => void;
 }
 
 export interface ServerToClientEvents {
   'room:state': (view: RoomView) => void;
+  'room:reaction': (reaction: Reaction) => void;
 }
